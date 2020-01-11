@@ -1,0 +1,18 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lambda Function from Cloud Formation by Wolfgang Unger - Code in S3 ZipFile'
+
+Resources:
+  Lambda1:
+    Type: "AWS::Lambda::Function"
+    Properties: 
+        Code:
+            S3Bucket: "cloud-com-course-work"
+            S3Key: "spring-cloud-function-example-0.0.1-SNAPSHOT-aws.jar"
+        Description: Test with Cloud Formation
+        FunctionName: carTestFunction
+        Handler: com.techprimers.serverless.AWSLambdaHandler
+        ## enter your role arn here
+        Role: arn:aws:iam::339630050954:role/dynamodb_all_role
+        Runtime: java8
+        MemorySize: 512
+        Timeout: 50

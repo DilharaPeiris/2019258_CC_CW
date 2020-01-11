@@ -1,0 +1,464 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template to create a lambda funtion and API gateway endpoint
+Resources:
+  APIExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+      Path: /
+      Policies:
+        - PolicyName: LambdaInvokePolicyForAPIGateway
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 'lambda:InvokeFunction'
+                Resource: '*'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: bfde41d6-7fcd-4d1a-bc6d-c729de69217e
+  LambdaBasicExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+            Condition: {}
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+        - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 06ec91a1-0f44-46a5-bd0e-a531fd1cc758
+  HelloWorldLambdFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: helloWorldLambdFunction
+      Handler: index.hello
+      Runtime: python3.6
+      Role: !GetAtt 
+        - LambdaBasicExecutionRole
+        - Arn
+      Tags:
+        - Key: Name
+          Value: Resource created by AWS Cloud Formation Template.
+      Code:
+        ZipFile: |
+          def hello(event, context):
+            return { "statusCode":200, "body":"Hello World IIT, I was created using AWS Cloud Formation."}
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 15095d91-53a1-4b2b-813a-be53b92abd14
+  APIGatewayResource:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: RestAPI
+      Description: AWS RESTful API for Lambda integration.
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: efc45613-aaba-4d6c-b168-abee8822bd2d
+  APIGatewayResourceGetModels:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt 
+        - APIGatewayResource
+        - RootResourceId
+      PathPart: getallmodels
+      RestApiId: !Ref APIGatewayResource
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 1eff93a8-6dbb-48e2-9510-0876f2b7b2d6
+  APIGatewayResourceHelloMethodIntegration:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        Credentials: !GetAtt 
+          - APIExecutionRole
+          - Arn
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - >-
+            arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt 
+              - carModelSearchLambda
+              - Arn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: '''*'''
+              method.response.header.Access-Control-Allow-Methods: '''POST,OPTIONS'''
+              method.response.header.Access-Control-Allow-Origin: '''*'''
+              method.response.header.Access-Control-Allow-Credentials: '''*'''
+        RequestTemplates:
+          application/json: $input.json('$')
+      ResourceId: !Ref APIGatewayResourceGetModels
+      RestApiId: !Ref APIGatewayResource
+      MethodResponses:
+        - ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
+          StatusCode: '200'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 8c2bd340-aa46-4377-b2e2-378db0b374f6
+  APIGatewayResourceDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn:
+      - APIGatewayResourceHelloMethodIntegration
+    Properties:
+      RestApiId: !Ref APIGatewayResource
+      StageName: test
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 0c2311d8-ff54-4ed5-ba71-f49f05813c03
+  GETOPTIONS:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt 
+        - APIGatewayResource
+        - RootResourceId
+      PathPart: getoptions
+      RestApiId: !Ref APIGatewayResource
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 6e99ad9d-aa19-48f7-af8b-01f758225476
+  GETOPTIONSBYID:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !Ref GETOPTIONS
+      PathPart: '{id}'
+      RestApiId: !Ref APIGatewayResource
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: e3df7412-ea39-44b5-a363-c2bac98d5c1b
+  getoptions:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ResourceId: !Ref GETOPTIONSBYID
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        Credentials: !GetAtt 
+          - APIExecutionRole
+          - Arn
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - >-
+            arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt 
+              - HelloWorldLambdFunction
+              - Arn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: '''*'''
+              method.response.header.Access-Control-Allow-Methods: '''POST,OPTIONS'''
+              method.response.header.Access-Control-Allow-Origin: '''*'''
+              method.response.header.Access-Control-Allow-Credentials: '''*'''
+        RequestTemplates:
+          application/json: $input.json('$')
+      RestApiId: !Ref APIGatewayResource
+      MethodResponses:
+        - ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
+          StatusCode: '200'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 750682c1-caa8-47f1-a1f4-bb577ed4ca86
+  carModelSearchLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: carModelSearchLambda
+      Code:
+        S3Bucket: carmodelsearchdev
+        S3Key: spring-cloud-function-example-0.0.1-SNAPSHOT-aws.jar
+      Handler: com.techprimers.serverless.AWSLambdaHandler
+      Runtime: java8
+      Description: ''
+      MemorySize: 512
+      Timeout: 40
+      Role: 'arn:aws:iam::146166412106:role/Car_Role'
+      Tags:
+        - Key: Name
+          Value: Resource created by AWS Cloud Formation Template.
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 79c5c655-4c30-49e6-856a-d265dd302a54
+  GETPRICES:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref APIGatewayResource
+      ParentId: !GetAtt 
+        - APIGatewayResource
+        - RootResourceId
+      PathPart: getprices
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 1cdc9868-035d-44fc-9381-2ff66a5c5486
+  GETPRICESBYID:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !Ref GETPRICES
+      PathPart: '{id}'
+      RestApiId: !Ref APIGatewayResource
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: d36f5a1a-8d15-45be-b94d-67b815a2c38f
+  getpricesMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ResourceId: !Ref GETPRICESBYID
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        Credentials: !GetAtt 
+          - APIExecutionRole
+          - Arn
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 
+          - >-
+            arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt 
+              - HelloWorldLambdFunction
+              - Arn
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: '''*'''
+              method.response.header.Access-Control-Allow-Methods: '''POST,OPTIONS'''
+              method.response.header.Access-Control-Allow-Origin: '''*'''
+              method.response.header.Access-Control-Allow-Credentials: '''*'''
+        RequestTemplates:
+          application/json: $input.json('$')
+      RestApiId: !Ref APIGatewayResource
+      MethodResponses:
+        - ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
+          StatusCode: '200'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: a523ed39-77a6-426e-bed5-72d66e8c4cde
+Outputs:
+  APIGatewayEndpoint:
+    Description: >-
+      Browse this URL to invoke or get the response from the Lambda function
+      through Postman or Browser.
+    Value: !Sub >-
+      https://${APIGatewayResource}.execute-api.${AWS::Region}.amazonaws.com/test/hello
+Metadata:
+  'AWS::CloudFormation::Designer':
+    efc45613-aaba-4d6c-b168-abee8822bd2d:
+      size:
+        width: 1050
+        height: 960
+      position:
+        x: 60
+        'y': 90
+      z: 1
+      embeds:
+        - 1cdc9868-035d-44fc-9381-2ff66a5c5486
+        - 6e99ad9d-aa19-48f7-af8b-01f758225476
+        - 1eff93a8-6dbb-48e2-9510-0876f2b7b2d6
+        - 0c2311d8-ff54-4ed5-ba71-f49f05813c03
+    1cdc9868-035d-44fc-9381-2ff66a5c5486:
+      size:
+        width: 420
+        height: 420
+      position:
+        x: 570
+        'y': 150
+      z: 2
+      parent: efc45613-aaba-4d6c-b168-abee8822bd2d
+      embeds:
+        - d36f5a1a-8d15-45be-b94d-67b815a2c38f
+      iscontainedinside:
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+    d36f5a1a-8d15-45be-b94d-67b815a2c38f:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 600
+        'y': 210
+      z: 3
+      parent: 1cdc9868-035d-44fc-9381-2ff66a5c5486
+      embeds:
+        - a523ed39-77a6-426e-bed5-72d66e8c4cde
+      iscontainedinside:
+        - 1cdc9868-035d-44fc-9381-2ff66a5c5486
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+        - 1cdc9868-035d-44fc-9381-2ff66a5c5486
+    6e99ad9d-aa19-48f7-af8b-01f758225476:
+      size:
+        width: 420
+        height: 420
+      position:
+        x: 90
+        'y': 150
+      z: 2
+      parent: efc45613-aaba-4d6c-b168-abee8822bd2d
+      embeds:
+        - e3df7412-ea39-44b5-a363-c2bac98d5c1b
+      iscontainedinside:
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+    e3df7412-ea39-44b5-a363-c2bac98d5c1b:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 120
+        'y': 210
+      z: 3
+      parent: 6e99ad9d-aa19-48f7-af8b-01f758225476
+      embeds:
+        - 750682c1-caa8-47f1-a1f4-bb577ed4ca86
+      iscontainedinside:
+        - 6e99ad9d-aa19-48f7-af8b-01f758225476
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+        - 6e99ad9d-aa19-48f7-af8b-01f758225476
+    1eff93a8-6dbb-48e2-9510-0876f2b7b2d6:
+      size:
+        width: 240
+        height: 240
+      position:
+        x: 90
+        'y': 630
+      z: 2
+      parent: efc45613-aaba-4d6c-b168-abee8822bd2d
+      embeds:
+        - 8c2bd340-aa46-4377-b2e2-378db0b374f6
+      iscontainedinside:
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+    06ec91a1-0f44-46a5-bd0e-a531fd1cc758:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 60
+        'y': 1110
+      z: 1
+      embeds: []
+    79c5c655-4c30-49e6-856a-d265dd302a54:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 180
+        'y': 1110
+      z: 1
+      embeds: []
+    15095d91-53a1-4b2b-813a-be53b92abd14:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 300
+        'y': 1110
+      z: 1
+      embeds: []
+    bfde41d6-7fcd-4d1a-bc6d-c729de69217e:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 420
+        'y': 1110
+      z: 1
+      embeds: []
+    a523ed39-77a6-426e-bed5-72d66e8c4cde:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 630
+        'y': 270
+      z: 4
+      parent: d36f5a1a-8d15-45be-b94d-67b815a2c38f
+      embeds: []
+      iscontainedinside:
+        - d36f5a1a-8d15-45be-b94d-67b815a2c38f
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+        - d36f5a1a-8d15-45be-b94d-67b815a2c38f
+    750682c1-caa8-47f1-a1f4-bb577ed4ca86:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 150
+        'y': 270
+      z: 4
+      parent: e3df7412-ea39-44b5-a363-c2bac98d5c1b
+      embeds: []
+      iscontainedinside:
+        - e3df7412-ea39-44b5-a363-c2bac98d5c1b
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+        - e3df7412-ea39-44b5-a363-c2bac98d5c1b
+    8c2bd340-aa46-4377-b2e2-378db0b374f6:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 120
+        'y': 690
+      z: 3
+      parent: 1eff93a8-6dbb-48e2-9510-0876f2b7b2d6
+      embeds: []
+      iscontainedinside:
+        - 1eff93a8-6dbb-48e2-9510-0876f2b7b2d6
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+        - 1eff93a8-6dbb-48e2-9510-0876f2b7b2d6
+    0c2311d8-ff54-4ed5-ba71-f49f05813c03:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 390
+        'y': 630
+      z: 2
+      parent: efc45613-aaba-4d6c-b168-abee8822bd2d
+      embeds: []
+      iscontainedinside:
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+        - efc45613-aaba-4d6c-b168-abee8822bd2d
+      dependson:
+        - 8c2bd340-aa46-4377-b2e2-378db0b374f6

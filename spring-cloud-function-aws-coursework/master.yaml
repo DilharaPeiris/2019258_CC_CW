@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation Script'
+
+Resources: 
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://cloud-com-course-work.s3.amazonaws.com/vpc.yaml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VpcCIDR: 10.180.0.0/16
+        PublicSubnet1CIDR: 10.180.8.0/21
+        PublicSubnet2CIDR: 10.180.16.0/21
+        PrivateSubnet1CIDR: 10.180.24.0/21
+        PrivateSubnet2CIDR: 10.180.32.0/21
+
+  APIExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+      Path: /
+      Policies:
+        -
+          PolicyName: "LambdaInvokePolicyForAPIGateway"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action: "lambda:InvokeFunction"
+                Resource: "*"
+
+  LambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Path: /
+      Policies:
+        -
+          PolicyName: "AdministratorAccessForLambda"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action: "*"
+                Resource: "*"
+                
+  CarDetailsFunction:
+    Type: "AWS::Lambda::Function"
+    Properties: 
+        Code:
+            S3Bucket: "cloud-com-course-work"
+            S3Key: "spring-cloud-function-example-0.0.1-SNAPSHOT-aws.jar"
+        Description: Test with Cloud Formation
+        FunctionName: CarDetailsFunction
+        Handler: com.techprimers.serverless.AWSLambdaHandler
+        Role: !GetAtt  "LambdaRole.Arn"
+        Runtime: java8
+        MemorySize: 512
+        Timeout: 50
+        
+  APIGatewayResource:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Name: "CarDetailsAPI"
+      Description: "RESTful API for Car Details Lambda integration."
+      
+  APIGatewayResourceGetCar:
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !GetAtt APIGatewayResource.RootResourceId
+      PathPart: '{proxy+}'
+      RestApiId: !Ref "APIGatewayResource"
+      
+  APIGatewayResourceGetCarMethodIntegration:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      ResourceId: !Ref APIGatewayResourceGetCar
+      RestApiId: !Ref APIGatewayResource    
+      AuthorizationType: NONE
+      HttpMethod: GET
+#      RequestParameters:
+#        - method.request.path.proxy: true
+      Integration:
+        Credentials: !GetAtt  APIExecutionRole.Arn                       
+        Type: "AWS_PROXY"
+        IntegrationHttpMethod: POST        
+        Uri: !Sub
+          - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+          - lambdaArn: !GetAtt "CarDetailsFunction.Arn"  
+#        RequestParameters:
+#            - integration.request.path.proxy: 'method.request.path.proxy'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ''
+            ResponseParameters:
+                method.response.header.Access-Control-Allow-Headers: "'*'"
+                method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+                method.response.header.Access-Control-Allow-Origin: "'*'"
+                method.response.header.Access-Control-Allow-Credentials:  "'*'"
+#        RequestTemplates:
+#          application/json: $input.json('$')
+
+      MethodResponses:
+        - ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
+          StatusCode: '200'
+          
+          
+          
+  APIGatewayResourceGetCarMethodIntegrationEnableCORS:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      ResourceId: !Ref APIGatewayResourceGetCar
+      RestApiId: !Ref APIGatewayResource
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      Integration:
+        Credentials: !GetAtt APIExecutionRole.Arn
+        Type: MOCK
+        IntegrationResponses:
+          - ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"        
+              method.response.header.Access-Control-Allow-Credentials:  "'*'"
+            ResponseTemplates:
+              application/json: ''
+            StatusCode: '200'
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
+          StatusCode: '200'
+
+  APIGatewayResourceDeployment:
+    Type: "AWS::ApiGateway::Deployment"
+    DependsOn: 
+      - APIGatewayResourceGetCarMethodIntegration
+      - APIGatewayResourceGetCarMethodIntegrationEnableCORS
+    Properties:
+      RestApiId: !Ref "APIGatewayResource"
+      StageName: "test"
+
+Outputs:
+  APIGatewayEndpoint:
+    Description: Browse this URL to invoke or get the response from the Lambda function through Postman or Browser.
+    Value: !Sub "https://${APIGatewayResource}.execute-api.${AWS::Region}.amazonaws.com/test/get-car"        
+          
