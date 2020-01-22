@@ -18,7 +18,12 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.util.StringUtils;
 
 @Configuration
-public class DynamoDBConfig {
+public class DBConfig {
+    @Bean
+    public DynamoDBMapper dynamoDBMapper(AmazonDynamoDB dynamoDBClient)
+    {
+        return new DynamoDBMapper(dynamoDBClient);
+    }
 
     @Bean
     public AmazonDynamoDB dynamoDBClient() {
@@ -26,10 +31,5 @@ public class DynamoDBConfig {
         return dynamoDBClient;
     }
 
-    @Bean
-    public DynamoDBMapper dynamoDBMapper(AmazonDynamoDB dynamoDBClient)
-    {
-        return new DynamoDBMapper(dynamoDBClient);
-    }
 
 }

@@ -64,48 +64,39 @@ public class Hello implements Function<APIGatewayProxyRequestEvent, APIGatewayPr
             if (request.getHttpMethod().equals("GET")) {
                 System.out.println("HttpMethod Hits");
                 CarEntity car;
-                switch (request.getQueryStringParameters().get("action")) {
-                    case "car":
-                        System.out.println("Switch execute case car");
-                        System.out.println(getCarById(Integer.parseInt(request.getQueryStringParameters().get("carId"))));
-                        String stringCar = objectMapper.writeValueAsString(getCarById(Integer.parseInt(request.getQueryStringParameters().get("carId"))));
-                        responseEvent.setBody(stringCar);
-                        break;
-                    case "cars":
-                        String stringCarList = objectMapper.writeValueAsString(getAllCarCars());
-                        responseEvent.setBody(stringCarList);
-                        break;
-                    case "options":
-                        car =getCarById(Integer.parseInt(request.getQueryStringParameters().get("carId")));
-                        String stringOptionList=String.join(",", car.getOptions());
-                        responseEvent.setBody("Model "+car.getModel()+" car options : " + stringOptionList);
-                        break;
-                    case "price":
-                         car =getCarById(Integer.parseInt(request.getQueryStringParameters().get("carId")));
-                        Double price=getCarById(Integer.parseInt(request.getQueryStringParameters().get("carId"))).getPrice();
-                        responseEvent.setBody("Model "+car.getModel()+" car price : " + price);
-                        break;
+                String method = String.valueOf(request.getQueryStringParameters().get("method"));
+                if (method.equals("car")) {
+                    System.out.println("Switch execute case car");
+                    System.out.println(getCarModelByCarId(Integer.parseInt(request.getQueryStringParameters().get("carId"))));
+                    String stringCar = objectMapper.writeValueAsString(getCarModelByCarId(Integer.parseInt(request.getQueryStringParameters().get("carId"))));
+                    responseEvent.setBody(stringCar);
+                }else if(method.equals("allcarModels")){
+                    String stringCarList = objectMapper.writeValueAsString(getAllCarCarModels());
+                    responseEvent.setBody(stringCarList);
+                }else if(method.equals("caroptionslist")){
+                    car =getCarModelByCarId(Integer.parseInt(request.getQueryStringParameters().get("carId")));
+                    String stringOptionList=String.join(",", car.getOptions());
+                    responseEvent.setBody("Vehicle  "+car.getModel()+" car options = " + stringOptionList);
+                }else if(method.equals("carprice")){
+                    car =getCarModelByCarId(Integer.parseInt(request.getQueryStringParameters().get("carId")));
+                    Double price=getCarModelByCarId(Integer.parseInt(request.getQueryStringParameters().get("carId"))).getPrice();
+                    responseEvent.setBody("Vehicle "+car.getModel()+" car price = " + price);
                 }
             }
             responseEvent.setStatusCode(201);
 
         } catch (Exception exp) {
-            System.out.println("Exception thrown");
-            System.out.println(exp.getCause());
-            System.out.println(exp.getMessage());
-            System.out.println(exp.getStackTrace());
             responseEvent.setStatusCode(500);
-            responseEvent.setBody("Exception thrown with the Spring Cloud Function with message: " + "|" + exp.getMessage());
+            responseEvent.setBody("Exception thrown " + "|" + exp.getMessage());
         }
-
         return responseEvent;
     }
 
-    private CarEntity getCarById(int carId) {
+    private CarEntity getCarModelByCarId(int carId) {
         return mapper.load(CarEntity.class, carId);
     }
 
-    private List<CarEntity> getAllCarCars() {
+    private List<CarEntity> getAllCarCarModels() {
         PaginatedScanList<CarEntity> carScanList = mapper.scan(CarEntity.class, new DynamoDBScanExpression());
         return carScanList.stream().collect(Collectors.toList());
     }
