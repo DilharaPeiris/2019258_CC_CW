@@ -1,0 +1,3 @@
+{{Url}}/test/car-info?action=price&carId=1
+{{Url}}/test/car-info?action=cars
+{{Url}}/test/car-info?action=options&carId=1
